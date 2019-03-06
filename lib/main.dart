@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:painter/painter.dart';
+import 'dart:ui' as ui;
+import 'dart:async';
 import 'dart:typed_data';
-import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 void main() => runApp(new MyApp());
 
@@ -10,224 +10,248 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return new MaterialApp(
-      title: 'Painter Example',
+      title: 'Test Example',
       home: new ExamplePage(),
     );
   }
 }
 
-class ExamplePage extends StatefulWidget {
-  @override
-  _ExamplePageState createState() => new _ExamplePageState();
-}
-
-class _ExamplePageState extends State<ExamplePage> {
-
-  bool _finished;
-  PainterController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _finished=false;
-    _controller=_newController();
-  }
-
-  PainterController _newController(){
-    PainterController controller=new PainterController();
-    controller.thickness=5.0;
-    controller.backgroundColor=Colors.green;
-    return controller;
-  }
-
+class ExamplePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    List<Widget> actions;
-    if(_finished){
-      actions = <Widget>[
-        new IconButton(
-          icon: new Icon(Icons.content_copy),
-          tooltip: 'New Painting',
-          onPressed: ()=>setState((){
-            _finished=false;
-            _controller=_newController();
-          }),
-        ),
-      ];
-    } else {
-      actions = <Widget>[
-        new IconButton(
-            icon: new Icon(Icons.undo),
-            tooltip: 'Undo',
-            onPressed:  _controller.undo
-        ),
-        new IconButton(
-            icon: new Icon(Icons.delete),
-            tooltip: 'Clear',
-            onPressed:  _controller.clear
-        ),
-        new IconButton(
-            icon: new Icon(Icons.check),
-            onPressed: ()=>_show( _controller.finish(),context)
-        ),
-      ];
-    }
+    PainterController controller = new PainterController();
+    controller.thickness = 5.0;
+    controller.backgroundColor = Colors.green;
     return new Scaffold(
       appBar: new AppBar(
-          title: const Text('Painter Example'),
-          actions:actions,
-          bottom: new PreferredSize(
-            child: new DrawBar(_controller),
-            preferredSize: new Size(MediaQuery.of(context).size.width,30.0),
-          )
+        title: const Text('Painter Example'),
       ),
-      body: new Center(
-          child:new AspectRatio(
-              aspectRatio: 1.0,
-              child: new Painter( _controller)
-          )
-      ),
-    );
-  }
-
-  void _show(PictureDetails picture,BuildContext context){
-    setState(() {
-      _finished=true;
-    });
-    Navigator.of(context).push(
-        new MaterialPageRoute(builder: (BuildContext context){
-          return new Scaffold(
-            appBar: new AppBar(
-              title: const Text('View your image'),
-            ),
-            body: new Container(
-                alignment: Alignment.center,
-                child:new FutureBuilder<Uint8List>(
-                  future:picture.toPNG(),
-                  builder: (BuildContext context, AsyncSnapshot<Uint8List> snapshot){
-                    switch (snapshot.connectionState)
-                    {
-                      case ConnectionState.done:
-                        if (snapshot.hasError){
-                          return new Text('Error: ${snapshot.error}');
-                        }else{
-                          return Image.memory(snapshot.data);
-                        }
-                        break;
-                      default:
-                        return new Container(
-                            child:new FractionallySizedBox(
-                              widthFactor: 0.1,
-                              child: new AspectRatio(
-                                  aspectRatio: 1.0,
-                                  child: new CircularProgressIndicator()
-                              ),
-                              alignment: Alignment.center,
-                            )
-                        );
-                    }
-                  },
-                )
-            ),
-          );
-        })
+      body: new Painter(controller),
     );
   }
 }
 
-class DrawBar extends StatelessWidget {
+class Painter extends StatefulWidget {
+  final PainterController painterController;
+  Painter(PainterController painterController):
+        this.painterController=painterController;
 
-  final PainterController _controller;
+  @override
+  _PainterState createState() => new _PainterState();
+}
 
-  DrawBar(this._controller);
+class _PainterState extends State<Painter> {
+
 
   @override
   Widget build(BuildContext context) {
-    return  new Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: <Widget>[
-        new Flexible(
-            child: new StatefulBuilder(
-                builder: (BuildContext context,StateSetter setState){
-                  return new Container(
-                      child: new Slider(
-                        value:  _controller.thickness,
-                        onChanged: (double value)=>setState((){
-                          _controller.thickness=value;
-                        }),
-                        min: 1.0,
-                        max: 20.0,
-                        activeColor: Colors.white,
-                      )
-                  );
-                }
-            )
+    return new Container(
+      child: new GestureDetector(
+        child:new CustomPaint(
+          willChange: true,
+          painter: new _PainterPainter(
+              widget.painterController._pathHistory,
+              repaint: widget.painterController
+          ),
         ),
-        new ColorPickerButton( _controller, false),
-        new ColorPickerButton( _controller, true),
-      ],
-    );
-  }
-}
-
-
-class ColorPickerButton extends StatefulWidget {
-
-  final PainterController _controller;
-  final bool _background;
-
-  ColorPickerButton(this._controller,this._background);
-
-  @override
-  _ColorPickerButtonState createState() => new _ColorPickerButtonState();
-}
-
-class _ColorPickerButtonState extends State<ColorPickerButton> {
-  @override
-  Widget build(BuildContext context) {
-    return new IconButton(
-        icon: new Icon(_iconData,color: _color),
-        tooltip: widget._background?'Change background color':'Change draw color',
-        onPressed: _pickColor
+        onPanStart: _onPanStart,
+        onPanUpdate: _onPanUpdate,
+        onPanEnd: _onPanEnd,
+      ),
+      width: double.infinity,
+      height: double.infinity,
     );
   }
 
-  void _pickColor(){
-    Color pickerColor=_color;
-    Navigator.of(context).push(
-        new MaterialPageRoute(
-            fullscreenDialog: true,
-            builder: (BuildContext context){
-              return new Scaffold(
-                  appBar: new AppBar(
-                    title: const Text('Pick color'),
-                  ),
-                  body: new Container(
-                      alignment: Alignment.center,
-                      child: new ColorPicker(
-                        pickerColor: pickerColor,
-                        onColorChanged: (Color c)=>pickerColor=c,
-                      )
-                  )
-              );
-            }
-        )
-    ).then((_){
-      setState((){
-        _color=pickerColor;
-      });
-    });
+  void _onPanStart(DragStartDetails start){
+    Offset pos=(context.findRenderObject() as RenderBox)
+        .globalToLocal(start.globalPosition);
+    widget.painterController._pathHistory.add(pos);
+    widget.painterController._notifyListeners();
   }
 
-  Color get _color=>widget._background?widget._controller.backgroundColor:widget._controller.drawColor;
+  void _onPanUpdate(DragUpdateDetails update){
+    Offset pos=(context.findRenderObject() as RenderBox)
+        .globalToLocal(update.globalPosition);
+    widget.painterController._pathHistory.updateCurrent(pos);
+    widget.painterController._notifyListeners();
+  }
 
-  IconData get _iconData=>widget._background?Icons.format_color_fill:Icons.brush;
+  void _onPanEnd(DragEndDetails end){
+    widget.painterController._pathHistory.endCurrent();
+    widget.painterController._notifyListeners();
+  }
 
-  set _color(Color color){
-    if(widget._background){
-      widget._controller.backgroundColor=color;
-    } else {
-      widget._controller.drawColor=color;
+}
+
+class _PainterPainter extends CustomPainter{
+  final _PathHistory _path;
+
+  _PainterPainter(this._path,{Listenable repaint}):super(repaint:repaint);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    _path.draw(canvas, size);
+  }
+
+  @override
+  bool shouldRepaint(_PainterPainter oldDelegate) {
+    return true;
+  }
+
+}
+
+class _PathHistory{
+
+  List<MapEntry<Path,Paint>> _paths;
+  Paint currentPaint;
+  Paint _backgroundPaint;
+  bool _inDrag;
+
+  _PathHistory(){
+    _paths=new List<MapEntry<Path,Paint>>();
+    _inDrag=false;
+    _backgroundPaint=new Paint();
+  }
+
+  void setBackgroundColor(Color backgroundColor){
+    _backgroundPaint.color=backgroundColor;
+  }
+
+  void undo() {
+    if (!_inDrag) {
+      _paths.removeLast();
     }
   }
+
+  void clear(){
+    if(!_inDrag){
+      _paths.clear();
+    }
+  }
+
+  void add(Offset startPoint){
+    if(!_inDrag) {
+      _inDrag=true;
+      Path path = new Path();
+      path.moveTo(startPoint.dx, startPoint.dy);
+      _paths.add(new MapEntry<Path, Paint>(path, currentPaint));
+    }
+  }
+
+  void updateCurrent(Offset nextPoint) {
+    if (_inDrag) {
+      Path path=_paths.last.key;
+      path.lineTo(nextPoint.dx, nextPoint.dy);
+    }
+  }
+
+  void endCurrent() {
+    _inDrag=false;
+  }
+
+  void draw(Canvas canvas,Size size){
+    canvas.drawRect(new Rect.fromLTWH(0.0, 0.0, size.width, size.height), _backgroundPaint);
+    for(MapEntry<Path,Paint> path in _paths){
+      canvas.drawPath(path.key,path.value);
+    }
+  }
+}
+
+typedef PictureDetails PictureCallback();
+
+class PictureDetails{
+  final ui.Picture picture;
+  final int width;
+  final int height;
+
+  const PictureDetails(this.picture,this.width,this.height);
+
+  Future<ui.Image> toImage(){
+    return picture.toImage(width, height);
+  }
+
+  Future<Uint8List> toPNG() async{
+    ui.Image img = await toImage();
+    return (await img.toByteData(format: ui.ImageByteFormat.png)).buffer.asUint8List();
+  }
+}
+
+class PainterController extends ChangeNotifier{
+  Color _drawColor=new Color.fromARGB(255, 0, 0, 0);
+  Color _backgroundColor=new Color.fromARGB(255, 255, 255, 255);
+
+  double _thickness=1.0;
+  PictureDetails _cached;
+  _PathHistory _pathHistory;
+  ValueGetter<Size> _widgetFinish;
+
+  PainterController(){
+    _pathHistory=new _PathHistory();
+  }
+
+  Color get drawColor => _drawColor;
+  set drawColor(Color color){
+    _drawColor=color;
+    _updatePaint();
+  }
+
+  Color get backgroundColor => _backgroundColor;
+  set backgroundColor(Color color){
+    _backgroundColor=color;
+    _updatePaint();
+  }
+
+  double get thickness => _thickness;
+  set thickness(double t){
+    _thickness=t;
+    _updatePaint();
+  }
+
+  void _updatePaint(){
+    Paint paint=new Paint();
+    paint.color=drawColor;
+    paint.style=PaintingStyle.stroke;
+    paint.strokeWidth=thickness;
+    _pathHistory.currentPaint=paint;
+    _pathHistory.setBackgroundColor(backgroundColor);
+    notifyListeners();
+  }
+
+  void undo(){
+    if(!isFinished()) {
+      _pathHistory.undo();
+      notifyListeners();
+    }
+  }
+
+  void _notifyListeners(){
+    notifyListeners();
+  }
+
+  void clear(){
+    if(!isFinished()) {
+      _pathHistory.clear();
+      notifyListeners();
+    }
+  }
+
+  PictureDetails finish(){
+    if(!isFinished()){
+      _cached=_render(_widgetFinish());
+    }
+    return _cached;
+  }
+
+  PictureDetails _render(Size size){
+    ui.PictureRecorder recorder =new ui.PictureRecorder();
+    Canvas canvas=new Canvas(recorder);
+    _pathHistory.draw(canvas, size);
+    return new PictureDetails(recorder.endRecording(),size.width.floor(),size.height.floor());
+  }
+
+  bool isFinished(){
+    return _cached!=null;
+  }
+
 }
