@@ -1,8 +1,10 @@
 // This is a generated file; do not edit or check into version control.
-FLUTTER_ROOT=C:\flutter
-FLUTTER_APPLICATION_PATH=c:\Projects\dart\sketching
+FLUTTER_ROOT=/Users/chtai/git/flutter
+FLUTTER_APPLICATION_PATH=/Users/chtai/git/flutter_sketcher_tutorial
 FLUTTER_TARGET=lib/main.dart
-FLUTTER_BUILD_MODE=debug
 FLUTTER_BUILD_DIR=build
-SYMROOT=${SOURCE_ROOT}/../build\ios
-FLUTTER_FRAMEWORK_DIR=C:\flutter\bin\cache\artifacts\engine\ios
+SYMROOT=${SOURCE_ROOT}/../build/ios
+FLUTTER_FRAMEWORK_DIR=/Users/chtai/git/engine/src/out/android_debug_unopt
+FLUTTER_ENGINE=/Users/chtai/git/engine/src
+LOCAL_ENGINE=android_debug_unopt
+ARCHS=arm64
